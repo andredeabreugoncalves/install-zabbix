@@ -1,0 +1,115 @@
+version: '3.7'
+
+networks:
+  network-zabbix:
+    driver: bridge
+
+
+networks:
+  network-zabbix:
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 172.18.0.0/16
+
+services:
+  mysql:  
+    container_name: mysql
+    image: mysql:8.0
+    networks:
+        network-zabbix:
+            ipv4_address: 172.18.0.5
+    restart: always
+    ports:
+      - '3306:3306'
+    volumes:
+      - './zabbix/mysql:/var/lib/mysql'
+    env_file:
+      - .env_db_mysql
+    command:
+      - mysqld
+      - --character-set-server=utf8 
+      - --collation-server=utf8_bin 
+      - --default-authentication-plugin=mysql_native_password 
+      - --disable-log-bin
+
+  zabbix-server:
+    container_name: zabbix-server
+    image: zabbix/zabbix-server-mysql:ubuntu-6.2-latest
+    networks:
+        network-zabbix:
+            ipv4_address: 172.18.0.6
+    links:
+      - mysql
+    restart: always
+    ports:
+      - '10051:10051'
+    volumes:
+      - './zabbix/alertscripts:/usr/lib/zabbix/alertscripts'
+    env_file:
+      - ./.env_db_mysql_zabbix
+      - ./.env_srv      
+    depends_on:
+      - mysql
+
+  zabbix-frontend:
+      container_name: zabbix-frontend
+      image: zabbix/zabbix-web-apache-mysql:alpine-6.2-latest
+      networks:
+          network-zabbix:
+              ipv4_address: 172.18.0.7
+      links:
+        - mysql
+      restart: always
+      volumes:
+      - ./ssl:/etc/ssl/apache2:ro
+      
+
+      ports:
+        - '80:8080'
+        - '443:8443'
+      env_file:
+        - .env_db_mysql_frontend
+      
+      depends_on:
+        - mysql
+        - zabbix-server
+
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana
+    networks:
+        network-zabbix:
+            ipv4_address: 172.18.0.8
+    links:
+      - mysql
+      - zabbix-server
+    restart: always
+    ports:
+      - '3000:3000'
+    environment: 
+      - GF_INSTALL_PLUGINS=alexanderzobnin-zabbix-app
+    depends_on:
+      - mysql
+      - zabbix-server
+      
+  zabbix-agent:
+    container_name: zabbix-agent
+    image: zabbix/zabbix-agent2:alpine-6.2-latest
+    user: root
+    networks:
+        network-zabbix:
+            ipv4_address: 172.18.0.9
+    links:
+      - zabbix-server
+    restart: always
+    privileged: true
+    volumes:
+      - /var/run:/var/run
+    ports:
+      - '10050:10050'
+    env_file:
+      - ./.env_agent  
+
+        

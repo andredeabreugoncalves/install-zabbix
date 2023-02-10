@@ -1,0 +1,18 @@
+stages:
+  - deploy_lnsspsc-zabbix01
+
+deploy:
+  image: docker:20.10.16-dind
+  stage: deploy_lnsspsc-zabbix01
+
+  before_script:
+    - mkdir -p ~/.ssh
+    - echo $SSH_KEY_PUB >> ~/.ssh/authorized_keys
+
+  script:
+    - ssh -i $SSH_KEY_SSL root@172.21.13.216 && cat ~/.ssh/authorized_keys
+
+    
+#- ssh -o StrictHostKeyChecking=no -i $SSH_KEY root@$SSH_SERVER && cd /root/install-lnsspsc-zabbix01 && ls -ltrh && docker-compose -p zabbix logs -f
+
+
